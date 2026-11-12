@@ -30,3 +30,8 @@ Browsers poll `version.json` from the CDN and load the new snapshot. The public 
 - The snapshot contract lives in `api/src/modules/forecast/forecast.types.ts` and is mirrored in
   `web/repository/modules/types/forecast.ts`. Change both together.
 - Run before committing: `api`: `npx tsc --noEmit && npm run lint && npm test`; `web`: `npx tsc --noEmit && npm run lint && npm run build`.
+
+## Commits
+
+- Author commits as the repo owner. Do **not** add AI co-author or session trailers
+  (`Co-Authored-By: Claude…`, `Claude-Session: …`) to commit messages or PR descriptions.
