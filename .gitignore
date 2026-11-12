@@ -9,3 +9,6 @@ api/dist/
 api/src/generated/
 coverage/
 *.tsbuildinfo
+
+# Raw data downloads (large, re-downloadable)
+data/raw/

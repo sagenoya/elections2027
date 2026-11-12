@@ -39,3 +39,28 @@ Accounts and deploy (you — see docs/setup-accounts.md):
 - [ ] Domain (optional, ~$10–15/yr)
 - [ ] Legal check: Electoral Act 2026 rules on publishing projections near election day
 - [ ] Deploy: migrate, seed, `docker compose up`, confirm the live site updates from R2
+
+## Phase 1 handoff (12 Nov 2026)
+
+Work moved from a cloud session to the owner's computer (cloud sessions sit behind a firewall
+allow-list, and Wikipedia rate-limits the shared cloud address).
+
+Findings so far:
+- **INEC website** (inecnigeria.org) was redesigned and no longer hosts 2015/2019/2023 results tables.
+  It links to the IReV results portal (`inecelectionresults.ng`), the best source for 2023 and the same
+  feed needed on election night (Phase 7).
+- **Wikipedia** state-level result tables for 2015/2019/2023 are a quick cross-check (identify the client
+  with a generic, descriptive name and respect rate limits).
+- Reachable and ready: NBS (nigerianstat.gov.ng), HDX (data.humdata.org), DHS API (api.dhsprogram.com),
+  WorldPop, geoBoundaries (NGA ADM1/ADM2), GDELT, CBN.
+- INEC's site lists the 2027 candidates (`/elections/2027-general-elections-update`).
+
+Next steps, in order:
+1. Raw downloads go in `data/raw/` (git-ignored); cleaned files in `data/clean/` (committed, small CSVs).
+2. Presidential results by state 2015, 2019, 2023 (+ turnout, registered voters) → `state_results`, `state_turnout`.
+3. LGA boundaries (geoBoundaries ADM2) + the 774 LGA list → `lgas`.
+4. 2023 results by LGA (IReV / civic datasets) → `lga_results`.
+5. Off-cycle governorship results (Edo, Ondo 2024; Anambra 2025; Ekiti, Osun 2026).
+6. NBS CPI/food inflation by state, food and fuel price watch → `indicators`.
+7. 2027 presidential candidates and running mates → `candidates`.
+8. Data-quality report listing every gap.
