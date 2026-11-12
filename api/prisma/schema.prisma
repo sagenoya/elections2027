@@ -1,0 +1,299 @@
+// Tilt: data model v1 (Phase 0).
+// Conventions: snake_case tables via @@map, UUID ids, enums for statuses.
+// Areas are identified by `areaKey`: "NG" (national), "KN" (state), "KN:Dala" (LGA).
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Zone {
+  NORTH_CENTRAL
+  NORTH_EAST
+  NORTH_WEST
+  SOUTH_EAST
+  SOUTH_SOUTH
+  SOUTH_WEST
+}
+
+enum ElectionType {
+  PRESIDENTIAL
+  GOVERNORSHIP
+  SENATE
+  HOUSE
+  STATE_ASSEMBLY
+}
+
+enum EventSource {
+  NEWS
+  MANUAL
+  POLL
+  DATA
+}
+
+enum EventStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ModelRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+// ─── Geography ────────────────────────────────────────────────────────────────
+
+model State {
+  id                          String   @id @default(uuid()) @db.Uuid
+  /// ISO 3166-2:NG suffix, e.g. "KN" for Kano, "FC" for the FCT.
+  code                        String   @unique @db.VarChar(2)
+  name                        String   @unique
+  zone                        Zone
+  /// False for the 8 off-cycle states and the FCT.
+  hasGovernorshipElection2027 Boolean  @map("has_governorship_election_2027")
+  createdAt                   DateTime @default(now()) @map("created_at")
+  updatedAt                   DateTime @updatedAt @map("updated_at")
+
+  lgas         Lga[]
+  elections    Election[]
+  stateResults StateResult[]
+  stateTurnout StateTurnout[]
+  indicators   Indicator[]
+  events       Event[]
+
+  @@map("states")
+}
+
+model Lga {
+  id        String   @id @default(uuid()) @db.Uuid
+  stateId   String   @map("state_id") @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  state      State        @relation(fields: [stateId], references: [id])
+  lgaResults LgaResult[]
+  lgaTurnout LgaTurnout[]
+  indicators Indicator[]
+
+  @@unique([stateId, name])
+  @@map("lgas")
+}
+
+// ─── Parties, elections, candidates ───────────────────────────────────────────
+
+model Party {
+  id        String   @id @default(uuid()) @db.Uuid
+  acronym   String   @unique
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  candidates   Candidate[]
+  stateResults StateResult[]
+  lgaResults   LgaResult[]
+
+  @@map("parties")
+}
+
+model Election {
+  id         String       @id @default(uuid()) @db.Uuid
+  /// Stable key, e.g. "PRES-2023", "GOV-2024-ED", "PRES-2027".
+  key        String       @unique
+  type       ElectionType
+  year       Int
+  date       DateTime     @db.Date
+  /// Set for state-level elections (governorship, off-cycle).
+  stateId    String?      @map("state_id") @db.Uuid
+  isOffCycle Boolean      @default(false) @map("is_off_cycle")
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  state        State?         @relation(fields: [stateId], references: [id])
+  candidates   Candidate[]
+  stateResults StateResult[]
+  lgaResults   LgaResult[]
+  stateTurnout StateTurnout[]
+  lgaTurnout   LgaTurnout[]
+
+  @@index([type, year])
+  @@map("elections")
+}
+
+model Candidate {
+  id            String   @id @default(uuid()) @db.Uuid
+  electionId    String   @map("election_id") @db.Uuid
+  partyId       String   @map("party_id") @db.Uuid
+  name          String
+  runningMate   String?  @map("running_mate")
+  /// State code of the candidate's home state.
+  homeStateCode String?  @map("home_state_code") @db.VarChar(2)
+  /// Free-form attributes used by the model (region, religion, ethnicity, age...).
+  attributes    Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  election Election @relation(fields: [electionId], references: [id])
+  party    Party    @relation(fields: [partyId], references: [id])
+
+  @@unique([electionId, partyId])
+  @@map("candidates")
+}
+
+// ─── Historical results ───────────────────────────────────────────────────────
+
+model StateResult {
+  id         String @id @default(uuid()) @db.Uuid
+  electionId String @map("election_id") @db.Uuid
+  stateId    String @map("state_id") @db.Uuid
+  partyId    String @map("party_id") @db.Uuid
+  votes      Int
+
+  election Election @relation(fields: [electionId], references: [id])
+  state    State    @relation(fields: [stateId], references: [id])
+  party    Party    @relation(fields: [partyId], references: [id])
+
+  @@unique([electionId, stateId, partyId])
+  @@map("state_results")
+}
+
+model LgaResult {
+  id         String @id @default(uuid()) @db.Uuid
+  electionId String @map("election_id") @db.Uuid
+  lgaId      String @map("lga_id") @db.Uuid
+  partyId    String @map("party_id") @db.Uuid
+  votes      Int
+
+  election Election @relation(fields: [electionId], references: [id])
+  lga      Lga      @relation(fields: [lgaId], references: [id])
+  party    Party    @relation(fields: [partyId], references: [id])
+
+  @@unique([electionId, lgaId, partyId])
+  @@map("lga_results")
+}
+
+model StateTurnout {
+  id         String @id @default(uuid()) @db.Uuid
+  electionId String @map("election_id") @db.Uuid
+  stateId    String @map("state_id") @db.Uuid
+  registered Int?
+  accredited Int?
+  validVotes Int?   @map("valid_votes")
+  rejected   Int?
+  totalCast  Int?   @map("total_cast")
+
+  election Election @relation(fields: [electionId], references: [id])
+  state    State    @relation(fields: [stateId], references: [id])
+
+  @@unique([electionId, stateId])
+  @@map("state_turnout")
+}
+
+model LgaTurnout {
+  id         String @id @default(uuid()) @db.Uuid
+  electionId String @map("election_id") @db.Uuid
+  lgaId      String @map("lga_id") @db.Uuid
+  registered Int?
+  accredited Int?
+  validVotes Int?   @map("valid_votes")
+  rejected   Int?
+  totalCast  Int?   @map("total_cast")
+
+  election Election @relation(fields: [electionId], references: [id])
+  lga      Lga      @relation(fields: [lgaId], references: [id])
+
+  @@unique([electionId, lgaId])
+  @@map("lga_turnout")
+}
+
+// ─── Indicators (economy, society, security, media...) ───────────────────────
+
+model Indicator {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// Data source slug, e.g. "nbs_cpi", "nbs_food_prices", "acled", "gdelt".
+  source    String
+  /// Measure, e.g. "food_inflation_yoy", "rice_50kg_price", "violent_events_30d".
+  key       String
+  /// Period label, e.g. "2026-09", "2026-W45", "2023".
+  period    String
+  areaKey   String   @map("area_key")
+  stateId   String?  @map("state_id") @db.Uuid
+  lgaId     String?  @map("lga_id") @db.Uuid
+  value     Float
+  unit      String?
+  fetchedAt DateTime @default(now()) @map("fetched_at")
+
+  state State? @relation(fields: [stateId], references: [id])
+  lga   Lga?   @relation(fields: [lgaId], references: [id])
+
+  @@unique([source, key, period, areaKey])
+  @@index([key, period])
+  @@map("indicators")
+}
+
+// ─── Live signals ─────────────────────────────────────────────────────────────
+
+/// Raw third-party payloads, kept separate from canonical records.
+model RawIngest {
+  id         String   @id @default(uuid()) @db.Uuid
+  source     String
+  externalId String   @map("external_id")
+  payload    Json
+  fetchedAt  DateTime @default(now()) @map("fetched_at")
+
+  @@unique([source, externalId])
+  @@index([source, fetchedAt])
+  @@map("raw_ingest")
+}
+
+model Event {
+  id         String      @id @default(uuid()) @db.Uuid
+  source     EventSource
+  status     EventStatus @default(PENDING)
+  /// e.g. "defection", "endorsement", "poll", "security", "court_ruling".
+  type       String
+  title      String
+  url        String?
+  /// Dedupe key from the upstream source (article URL hash, poll id...).
+  externalId String?     @unique @map("external_id")
+  stateId    String?     @map("state_id") @db.Uuid
+  /// Structured details from the classifier or the analyst.
+  payload    Json
+  /// Model effect: { candidate, areaKeys, sizePp, halfLifeDays, confidence }.
+  effect     Json?
+  occurredAt DateTime    @map("occurred_at")
+  reviewedAt DateTime?   @map("reviewed_at")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  state State? @relation(fields: [stateId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([occurredAt])
+  @@map("events")
+}
+
+// ─── Model runs ───────────────────────────────────────────────────────────────
+
+model ModelRun {
+  id              String         @id @default(uuid()) @db.Uuid
+  status          ModelRunStatus @default(RUNNING)
+  modelVersion    String         @map("model_version")
+  /// What caused the run: "cron", "manual", "event:<id>".
+  trigger         String
+  simulations     Int            @default(0)
+  snapshotVersion String?        @unique @map("snapshot_version")
+  /// The full published snapshot, for history and the odds-over-time chart.
+  snapshot        Json?
+  error           String?
+  startedAt       DateTime       @default(now()) @map("started_at")
+  finishedAt      DateTime?      @map("finished_at")
+
+  @@index([status, startedAt])
+  @@map("model_runs")
+}

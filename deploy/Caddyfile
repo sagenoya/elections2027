@@ -1,0 +1,5 @@
+# Automatic HTTPS for the admin/API domain (e.g. api.tilt.ng).
+{$API_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy api:4000
+}
