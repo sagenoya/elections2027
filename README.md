@@ -29,6 +29,13 @@ npm install
 npm run dev                   # http://localhost:3000
 ```
 
+`npm run dev` only fully works when opened as `localhost` (Next.js 16 blocks dev scripts from other
+addresses). To open it from another device, a tunnel or a preview pane, use the production build:
+
+```bash
+npm run preview               # builds the static export, serves it on :3000 with live /data
+```
+
 In development the API publishes snapshots into `web/public/data`, so the web app shows live updates
 without any cloud services. Trigger a run by hand:
 
